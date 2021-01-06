@@ -12,6 +12,10 @@ libraryDependencies += "com.rewardsnetwork" %% "combos" % "<latest tag>"
 libraryDependencies += "com.rewardsnetwork" %% "combos-refined" % "<latest tag>" //Optional - adds Refined support
 ```
 
+## API Docs
+* [Core](https://javadoc.io/doc/com.rewardsnetwork/combos_2.13/latest/com/rewardsnetwork/combos/index.html)
+* [Refined](https://javadoc.io/doc/com.rewardsnetwork/combos-refined_2.13/latest/com/rewardsnetwork/combos/refined/index.html)
+
 ## License
 Copyright 2020 Rewards Network Establishment Services
 
