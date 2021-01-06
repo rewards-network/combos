@@ -1,10 +1,12 @@
 # Combos
 ![Sonatype Nexus (Releases)](https://img.shields.io/nexus/r/com.rewardsnetwork/combos_2.13?label=latest&server=https%3A%2F%2Foss.sonatype.org)
+
+
 A validation library for Scala
 
 ## Setup
 This library is published for both Scala 2.12 and 2.13.
-Scala 3 support will be coming
+Scala 3 support will be coming soon.
 ```
 libraryDependencies += "com.rewardsnetwork" %% "combos" % "<latest tag>"
 libraryDependencies += "com.rewardsnetwork" %% "combos-refined" % "<latest tag>" //Optional - adds Refined support
