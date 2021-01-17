@@ -32,35 +32,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ## Motivation
-This library was birthed from some projects that needed to share validation logic across multiple projects and sub-projects.
-Normal validation often focuses on functions that take in an object with several fields, which is harder to test in isolation as you need to create a lot of mock data.
-You can define functions that take in smaller values, such as a single field, but wiring those together is not directly composable.
-This library uses Cats to implement certain validation patterns that are applicable for both fail-fast and error-accumulating scenarios alike, and allows you to plug different validations into each other to create more complicated validation processes.
+This library originates from some projects that needed to share validation logic across multiple sub-projects.
+Normally, you often see validation focus on functions that take in an object with several fields, which is harder to test in isolation as you need to create a lot of test data.
+You can define functions that take in smaller values, such as a single field, but wiring those together through function composition often results in a lot of boilerplate.
+This library uses Cats to implement certain validation patterns that work for both failing fast with a single error, or accumulating errors, with multiple common validation scenarios supported as special syntax.
 
-The end result is a library that allows you to separate your validation logic, data definition, and testing logic in a much easier, more compact way than doing it strictly with functions alone can provide.
+The end result is a library that allows you to separate your validation functions, data definition, and testing logic for each of your validations in an easier, more compact way than doing it strictly with functions alone can provide.
 
 ## Basic Usage
 A `Validator[E, A]` is a type that validates values of type `A` and produces errors of type `E`.
-As opposed to manually composing `Either` and `Validated` values together, a `Validator` allows you to focus on individual "checks" that need to be performed, and then can be composed and "ran" later into one full `Either` value containing your errors.
+As opposed to manually composing `Either` and `Validated` values together and figuring out how the types work, a `Validator` allows you to focus on individual "checks" that need to be performed, and then can be composed and "ran" later into one full `Either` value containing your errors.
 
 To get started, `import com.rewardsnetwork.combos.syntax._` and take a look at the `check` function, which allows you to create a validator.
-To compose validators, look at `checkAll` for fail-fast validation, and `parCheckAll` for accumulating errors.
-To pass a validator a value to be tested, use `.run`, or if you are only expecting a single error value you can use `.runFailFast`.
+The way it works is simple: you provide a partial function (like `{ case x => ... }`) that returns some error value for each branch.
+Anything that does not match is assumed valid, and passes through without returning an error.
+To run one, just use `.run(a)` for some `A` value.
 
-When using `checkAll`, it will return a `ShortCircuit[E, A]` which is equivalent to a `Validator[E, A]`, except it can only return a single error value.
-`parCheckAll` returns another `Validator` that can be composed with other validators, and returns all possible error values.
-You can transform between the two using `.failFast` on `Validator` and `.accumulate` on `ShortCircuit`.
-
-When composing validators, you will want to change their input type with `.local`, which acts as a `map`-like function for the input value.
-In this way, you can validate case classes and other data structures simply by defining a way to get from your more specific type to the field you are trying to validate.
+You can compose validators together just like any `Monad`, as under the hood, a `Validator` is a `cats.data.Kleisli` value.
+This just means, it's a function that we've wrapped with a special data type that allows us to transform its inputs and outputs, among other things.
+This means you can use checks in for-comprehensions, as they support `flatMap`, and you can also accumulate them together using `traverse` on a `List` of them.
+To simplify this for yourself, look at the `checkAll` function for fail-fast validating lists of validators, and `parCheckAll` for accumulating errors.
 
 Example usage:
 ```scala
 case class MyCaseClass(int: Int, string: String)
 
+//Checks that the supplied int is not equal to 5
 val checkInt: Validator[Boolean, Int] = check { case 5 => false }
+
+//Checks that the supplied string is not equal to "thing"
 val checkString: Validator[Boolean, String] = check { case "thing" => false }
 
+//Defines a validator that gets each error in  the supplied list
 val checkCaseClass = parCheckAll(List[Validator[Boolean, MyCaseClass]](
   checkInt.local(_.int),
   checkString.local(_.string)
@@ -71,57 +74,98 @@ val badCaseClass = MyCaseClass(5, "thing")
 checkCaseClass.run(badCaseClass)
 // Left(NonEmptyChain(false, false)) -- both errors
 
-checkCaseClass.failFast.runFailFast(badCaseClass)
+checkCaseClass.failFast.run(badCaseClass)
 // Left(false) -- first error only
 ```
 
-## Checker
-`Checker` is a mix-in trait or importable DSL that is just a shorter way to define multiple validators.
-Say you are validating the numerous fields of a case class, and are providing those all in an object.
-It would be very tedious to have to specify the error type for every single validation, so a `Checker` solves that for you.
-You can `extend Checker[E]` and you will get a `check[A]` function that has a fixed error type in your local scope.
-If you feel uneasy about extending the mix-in, simply create a checker and import its values, like so:
-```scala
-val checker = Checker[String]
-checker.check[Boolean] { case false => "can't be false" }
+As you can see in the example above, by default you will accumulate errors.
+You have to explicitly opt into short-circuiting, which is the opposite of how validation usually works with libraries like Cats, using `Validated`.
+Certain operations, such as `checkAll`, will return a `ShortCircuit[E, A]` which is equivalent to a `Validator[E, A]` except in that it can only return a single error value.
+`parCheckAll`, on the other hand, returns another `Validator` that can be composed with other validators, and returns all possible error values.
+You can transform between the two using `.failFast` on `Validator` and `.accumulate` on `ShortCircuit`.
 
+When composing validators, you will want to change their input type with `.local`, which acts as a `map`-like function for the input value.
+In this way, you can validate case classes and other data structures simply by defining a way to get from your more specific type to the field you are trying to validate.
+
+## Checker
+`Checker` is a mix-in trait that is a helpful, shorter way to define multiple validators.
+Say you are validating the numerous fields of a case class, and are providing those validation functions all together in some object or package.
+It would be very tedious to have to specify the error type for every single validation if they are the same, so a `Checker` solves that for you by fixing the error type.
+You can `extend Checker[E]` and you will get a `check[A]` function (among others) that fixes the error type to `E`.
+If you feel uneasy about extending the mix-in, you can also simply create a checker and import its values, like so:
+```scala
+//Without a checker:
+check[String, Boolean] { case false => "can't be false" }
+
+//You can extend Checker to simplify your syntax like so:
+object BoolChecks extends Checker[String] {
+  val checkFalse: Validator[String, Boolean] = check[Boolean] { case false => "can't be false" }
+}
+
+//Or create a Checker DSL object
+val checker = new Checker[String]
 import checker._
 check[boolean] { case false => "can't be false" }
-
-//The above two are equivalent
 ```
 
 ## Returning Values & Ask
-A `Validator` and `ShortCircuit` are instances of `ReturningValidator` and `ReturningShortCircuit` respectively.
-These are the same as before, except they also have a known return value.
-This can be particularly useful when you are building "chained validators" where the output from one validator should be fed into a subsequent one.
+A `Validator` and `ShortCircuit` are instances of slightly more verbose types `ReturningValidator` and `ReturningShortCircuit` respectively.
+These are the similar to their non-`Returning` siblings, except they also have a known return value.
+By default, all `Validator` values return `Unit`, to simplify the type signature and allow you to focus on your checks.
+By using a `ReturningValidator` instead you can create chained validators that depend on the output value of a previous validator, which can sometimes be useful.
 
-To produce one of these values, use `checkReturn` instead of `check`, which returns the source input.
+To make one of these values, use `checkReturn` instead of `check`, which returns the source input.
 It can then be mapped, flatMapped, and transformed like any other monadic value.
 
-Sometimes you will want to "ask for" a value, but not immediately validate it, possibly to use it as part of a more complex validation scenario.
-Consider this example where you are validating a user's age, and want to return the validated `User` object given you know the user's name:
+Sometimes you will want to "ask for" a value as input to your validator, but not immediately validate it, possibly to use it as part of a more complex validation scenario.
+Consider this example where you are validating a `User` which has a name and an age, and you want to validate that the user is a legal adult (over 18 years).
+We can use `ask` to get the full `User`, and filter down to the specific field we want to validate before returning a validated `Adult` value:
 ```scala
 case class User(name: String, age: Int)
 
-val askName = ask[String, String]
+case class Adult(name: String)
 
-val checkAge = checkReturn[String, Int] {
+val askUser = ask[String, User]
+
+val checkAge = check[String, Int] {
   case age if (age < 18) => "User is not an adult"
 }
 
-// Checks the user's age, then adds in a name and returns the validated user.
-val checkUser = askName.local[User](_.name).flatMap { name =>
+// Checks the user's age, and if it fits, return a valid Adult.
+val checkUserIsAdult = askUser.flatMap { user =>
   checkAge
     .local[User](_.age)
-    .as(age => User(name, age))
+    .as(age => Adult(user.name))
 }
 
-checkUser.run(User("Ryan", 18)) //Right(User("Ryan", 18))
+checkUserIsAdult.run(User("Ryan", 18)) //Right(Adult("Ryan"))
 ```
 
 In addition, there are special `option` and `either` constructors that will `ask` for a value, and if it exists, try to return it.
-These are especially useful when building staged validation where some input is optional and you need to extract it regardless.
+These are especially useful when building validations where some input is optional and you need to extract it before continuing.
+
+```scala
+import java.time.LocalDate
+import cats.syntax.all._
+
+case class UserWithDateOfBirth(name: String, age: Int, dob: LocalDate)
+
+//Assume we may not know the user's date of birth
+val maybeDob: Option[LocalDate] = LocalDate.of(2000, 4, 20).some
+
+val exampleUser = User("Ryan", 18)
+
+//Ask for the date of birth, and if it exists, return as UserWithDateOfBirth
+val validateUserWithDob = option[String, LocalDate]("Date of birth does not exist").map { dob =>
+  UserWithDateOfBirth(exampleUser.name, exampleUser.age, dob)
+}
+
+validateUserWithDob.runFailFast(maybeDob)
+//Right(UserWithDateOfBirth("Ryan", 18, 2000-04-20))
+
+validateUserWithDob.runFailFast(none)
+//Left("Date of birth does not exist")
+```
 
 ## Special Syntax
 Every `Validator` and derivative thereof has special syntax you can use from implicits.
@@ -146,10 +190,11 @@ For every `ShortCircuit`, these are available:
 ## Effects
 This library also supports arbitrary effects `F[_]` such as Cats Effect `IO`.
 For most functionality to work, your `F` needs at least a `Monad` instance from Cats.
-For our examples, `IO` should work just fine.
+For our examples, `IO` should work just fine, but the library does not depend on Cats Effect.
 
 You can use all of the same operators as the regular validators, except appended with an `F`.
 For example, `check` becomes `checkF`, and `ask` becomes `askF`.
+`askF` works similarly to how you would use `eval` operators in something like FS2, where you are just evaluating an effect and continuing with your validations.
 You can shorten the type signature burden on yourself significantly if you use an `FChecker`, which is the same as a `Checker` except it also fixes the `F[_]` type as well as the error type `E`.
 
 Effectful validators can also evaluate effects in `F` and extract their values.
@@ -160,12 +205,39 @@ It works similarly to `.lift` on  `Kleisli`, but it also ensures that the result
 
 **N.B.** Prefer using `.withF` in cases where you still want to compose with other validators.
 
-## Refined Support
-This library optionally supports refining validators using the popular `refined` library.
-To use, add the `combos-refined` dependency to your project, and `import com.rewardsnetwork.combos.refined.syntax._`.
-It adds the following new operation:
+Example:
+```scala
+import cats.effect.IO
 
-* `refine[A, P]` - Ask for a value `A` and validate that it is refinable to `A Refined P`.
+//Lets assume this is today - we only want records from today
+val today = LocalDate.of(2021, 1, 1)
+
+//We are pulling some data from a database that looks like this
+case class RawData(id: String, dateUploaded: LocalDate, bytes: Array[Byte])
+
+//It isn't usable until it is in this shape
+case class ParsedData(id: String, contents: String)
+
+//Lets get that data, validate it, and return it using validators
+val getRecentDataFromDatabase: IO[RawData] = ???
+val checkDate = check[String, LocalDate] { case date if (date != today) => s"Received data is not from today ($date)" }
+val parseRawData: FValidator[IO, String, RawData] = askF[IO, String, RawData].flatMap { rawData =>
+  //We can use .local to map the expected input, just like on Kleisli
+  checkDate
+    .local[RawData](_.dateUploaded)
+    .as(ParsedData(rawData.id, new String(rawData.bytes)))
+}
+
+//When ran, gives us an EitherT, which we can turn back into IO using .value
+val getAndValidateData: IO[Either[String, ParsedData] = parseRawData.runFailFast(getRecentDAtaFromDatabase).value
+```
+
+## Refined Support
+We fully support the [fthomas/refined](https://github.com/fthomas/refined) library for validating your data using refined predicates, as well as creating new predicates from your validations easily.
+To use, add the `combos-refined` dependency to your project, and `import com.rewardsnetwork.combos.refined.syntax._`.
+It adds the following new syntax for creating validators:
+
+* `refine[A, P]` - Ask for a value `A` and validate that it is refinable to `A Refined P`. Returns the final refined value.
 
 It also enables the following extension methods on existing validators:
 
