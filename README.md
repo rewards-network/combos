@@ -17,7 +17,7 @@ libraryDependencies += "com.rewardsnetwork" %% "combos-refined" % "<latest tag>"
 * [Refined](https://javadoc.io/doc/com.rewardsnetwork/combos-refined_2.13/latest/com/rewardsnetwork/combos/refined/index.html)
 
 ## License
-Copyright 2020 Rewards Network Establishment Services
+Copyright 2021 Rewards Network Establishment Services
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
