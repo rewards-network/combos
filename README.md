@@ -135,7 +135,7 @@ val checkAge = check[String, Int] {
 val checkUserIsAdult = askUser.flatMap { user =>
   checkAge
     .local[User](_.age)
-    .as(age => Adult(user.name))
+    .as(Adult(user.name)) //Shorthand syntax for `.map(_ => Adult(user.name))` from Cats
 }
 
 checkUserIsAdult.run(User("Ryan", 18)) //Right(Adult("Ryan"))
