@@ -1,5 +1,6 @@
 # Combos
 ![Sonatype Nexus (Releases)](https://img.shields.io/nexus/r/com.rewardsnetwork/combos_2.13?label=latest&server=https%3A%2F%2Foss.sonatype.org)
+[![Gitter](https://badges.gitter.im/rewards-network/community.svg)](https://gitter.im/rewards-network/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 
 A validation library for Scala
