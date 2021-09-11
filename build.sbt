@@ -8,7 +8,7 @@ val munitCatsEffectV = "1.0.5"
 val scalaCheckV = "1.15.4"
 val scalaCheckEffectV = "1.0.2"
 val betterMonadicForV = "0.3.1"
-val kindProjectorV = "0.11.2"
+val kindProjectorV = "0.13.0"
 
 val catsCore = "org.typelevel" %% "cats-core" % catsV
 val refinedCore = "eu.timepit" %% "refined" % refinedV
