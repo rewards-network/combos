@@ -1,28 +1,35 @@
 //Core deps
-val catsV = "2.3.1"
-val catsEffectV = "2.3.1"
-val refinedV = "0.9.20"
+val catsV = "2.6.1"
+val catsEffectV = "3.2.8"
+val refinedV = "0.9.27"
 //Test/build deps
-val scalaTestV = "3.2.3"
-val scalaCheckV = "1.15.2"
-val scalaTestScalacheckV = "3.2.3.0"
+val munitV = "0.7.29"
+val munitCatsEffectV = "1.0.5"
+val scalaCheckV = "1.15.4"
+val scalaCheckEffectV = "1.0.2"
 val betterMonadicForV = "0.3.1"
 val kindProjectorV = "0.11.2"
-val silencerV = "1.7.1"
-val flexmarkV = "0.35.10" // scala-steward:off
+
+val catsCore = "org.typelevel" %% "cats-core" % catsV
+val refinedCore = "eu.timepit" %% "refined" % refinedV
+
+val munitCatsEffect = "org.typelevel" %% "munit-cats-effect-3" % munitCatsEffectV % "test"
+val munitScalacheck = "org.scalameta" %% "munit-scalacheck" % munitV
+val scalaCheck = "org.scalacheck" %% "scalacheck" % scalaCheckV % "test"
+val scalaCheckEffect = "org.typelevel" %% "scalacheck-effect-munit" % scalaCheckEffectV % "test"
 
 val scala213 = "2.13.4"
 val scala212 = "2.12.12"
+val scala3 = "3.0.2"
 
 inThisBuild(
   List(
-    organization := "com.rewardsnetwork",
     developers := List(
       Developer("sloshy", "Ryan Peters", "me@rpeters.dev", url("https://github.com/sloshy"))
     ),
     homepage := Some(url("https://github.com/rewards-network/combos")),
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
-    githubWorkflowJavaVersions := Seq("adopt@1.11"),
+    githubWorkflowJavaVersions := Seq("adopt@1.8"),
     githubWorkflowTargetTags ++= Seq("v*"),
     githubWorkflowPublishTargetBranches := Seq(RefPredicate.StartsWith(Ref.Tag("v"))),
     githubWorkflowPublish := Seq(
@@ -40,18 +47,20 @@ inThisBuild(
 )
 
 val commonSettings = Seq(
-  scalaVersion := "2.13.4",
-  crossScalaVersions := Seq(scala212, scala213),
+  scalaVersion := scala213,
+  crossScalaVersions := Seq(scala212, scala213, scala3),
   organization := "com.rewardsnetwork",
   name := "combos",
-  testOptions in Test ++= Seq(
-    Tests.Argument(TestFrameworks.ScalaTest, "-o"),
-    Tests.Argument(TestFrameworks.ScalaTest, "-h", "target/test/test-reports")
-  ),
-  addCompilerPlugin("com.olegpy" %% "better-monadic-for" % betterMonadicForV),
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % kindProjectorV cross CrossVersion.full),
-  addCompilerPlugin("com.github.ghik" % "silencer-plugin" % silencerV cross CrossVersion.full),
-  scalacOptions += "-P:silencer:pathFilters=.*[/]src_managed[/].*" //Filter compiler warnings from generated source
+  libraryDependencies ++= {
+    if (scalaVersion.value.startsWith("2")) {
+      Seq(
+        compilerPlugin("com.olegpy" %% "better-monadic-for" % betterMonadicForV),
+        compilerPlugin("org.typelevel" %% "kind-projector" % kindProjectorV cross CrossVersion.full)
+      )
+    } else {
+      Seq.empty
+    }
+  }
 )
 
 lazy val root = (project in file("."))
@@ -67,14 +76,12 @@ lazy val core = (project in file("core"))
     name := "combos",
     libraryDependencies ++= Seq(
       //Core deps
-      "org.typelevel" %% "cats-core" % catsV,
+      catsCore,
       //Test deps
-      "org.typelevel" %% "cats-effect" % catsEffectV,
-      "org.typelevel" %% "cats-effect-laws" % catsEffectV % "test",
-      "org.scalatest" %% "scalatest" % scalaTestV % "test",
-      "org.scalacheck" %% "scalacheck" % scalaCheckV % "test",
-      "org.scalatestplus" %% "scalacheck-1-15" % scalaTestScalacheckV % "test",
-      "com.vladsch.flexmark" % "flexmark-all" % flexmarkV % "test"
+      munitCatsEffect,
+      munitScalacheck,
+      scalaCheck,
+      scalaCheckEffect
     )
   )
 
@@ -83,7 +90,7 @@ lazy val refined = (project in file("refined"))
     commonSettings,
     name := "combos-refined",
     libraryDependencies ++= Seq(
-      "eu.timepit" %% "refined" % refinedV
+      refinedCore
     )
   )
   .dependsOn(core % "compile->compile;test->test")

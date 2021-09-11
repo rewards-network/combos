@@ -5,113 +5,117 @@ import cats.effect.IO
 import cats.implicits._
 import com.rewardsnetwork.combos.syntax._
 import Checks._
+import org.scalacheck.Prop
+import munit.CatsEffectSuite
+import munit.ScalaCheckEffectSuite
+import org.scalacheck.effect.PropF
 
-class ValidatorSpec extends TestingBase {
+class ValidatorSpec extends CatsEffectSuite with ScalaCheckEffectSuite {
 
   test("ask should return its input") {
-    forAll { i: Int =>
+    Prop.forAll { (i: Int) =>
       val result = ask[Unit, Int].run(i)
-      result shouldBe i.rightNec
+      assert(result == i.rightNec)
     }
   }
 
   test("askF should return its input wrapped in F") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val resultIO = askF[IO, Unit, Int].run(i).value
-      resultIO.unsafeRunSync() shouldBe i.rightNec
+      resultIO.assertEquals(i.rightNec)
     }
   }
 
   test("askEval should evaluate an input effect and return the result") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val resultIO = askEval[IO, Unit, Int].run(i.pure[IO]).value
-      resultIO.unsafeRunSync() shouldBe i.asRight
+      resultIO.assertEquals(i.asRight)
     }
   }
 
   test("check should apply test to input") {
-    forAll { badInt: Int =>
+    Prop.forAll { (badInt: Int) =>
       val checkInt = intCheck(badInt)
-      checkInt.run(badInt) shouldBe false.leftNec
-      checkInt.run(badInt - 1) shouldBe ().rightNec
+      assert(checkInt(badInt) == false.leftNec)
+      assert(checkInt(badInt - 1) == ().rightNec)
     }
   }
 
   test("checkEval should apply test to input") {
-    forAll { badInt: Int =>
+    PropF.forAllF { (badInt: Int) =>
       val checkInt = intCheckIO(badInt)
-      checkInt.run(badInt).value.unsafeRunSync() shouldBe false.leftNec
-      checkInt.run(badInt - 1).value.unsafeRunSync() shouldBe ().rightNec
+      checkInt.run(badInt).value.assertEquals(false.leftNec) >>
+        checkInt.run(badInt - 1).value.assertEquals(().rightNec)
     }
   }
 
   test("checkAll should fail fast, parCheckAll should accumulate") {
-    forAll { badInt: Int =>
+    Prop.forAll { (badInt: Int) =>
       val checkInt = intCheck(badInt)
       val checks = List(checkInt, checkInt)
       val checkFast = checkAll(checks)
       val checkAccumulating = parCheckAll(checks)
 
-      checkFast.run(badInt) shouldBe false.asLeft
-      checkAccumulating.run(badInt) shouldBe NonEmptyChain(false, false).asLeft
+      assert(checkFast.run(badInt) == false.asLeft)
+      assert(checkAccumulating.run(badInt) == NonEmptyChain(false, false).asLeft)
     }
   }
 
   test("checkAllF should fail fast, parCheckAllF should accumulate") {
-    forAll { badInt: Int =>
+    PropF.forAllF { (badInt: Int) =>
       val checkInt = intCheckIO(badInt)
       val checks = List(checkInt, checkInt)
       val checkFast = checkAllF(checks)
       val checkAccumulating = parCheckAllF(checks)
 
-      checkFast.run(badInt).value.unsafeRunSync() shouldBe false.asLeft
-      checkAccumulating.run(badInt).value.unsafeRunSync() shouldBe NonEmptyChain(false, false).asLeft
+      checkFast.run(badInt).value.assertEquals(false.asLeft) >>
+        checkAccumulating.run(badInt).value.assertEquals(NonEmptyChain(false, false).asLeft)
     }
   }
 
   test("option should extract the optional value") {
-    forAll { i: Int =>
+    Prop.forAll { (i: Int) =>
       val getInt = option[Unit, Int](())
-      getInt.run(i.some) shouldBe i.asRight
-      getInt.run(none) shouldBe ().leftNec
+      assert(getInt.run(i.some) == i.asRight)
+      assert(getInt.run(none) == ().leftNec)
     }
   }
 
   test("optionF should lift the result to F[A]") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val getIntF = optionF[IO, Unit, Int](())
-      getIntF.run(i.some).value.unsafeRunSync() shouldBe i.asRight
-      getIntF.run(none).value.unsafeRunSync() shouldBe ().leftNec
+      getIntF.run(i.some).value.assertEquals(i.asRight) >>
+        getIntF.run(none).value.assertEquals(().leftNec)
     }
   }
 
   test("optionEval should evaluate an input effect and return the result") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val resultIO = optionEval[IO, Unit, Int](()).run(i.some.pure[IO]).value
-      resultIO.unsafeRunSync() shouldBe i.asRight
+      resultIO.assertEquals(i.asRight)
     }
   }
 
   test("either should extract the right-side value") {
-    forAll { i: Int =>
+    Prop.forAll { (i: Int) =>
       val getInt = either[Unit, Int]
-      getInt.run(i.asRight) shouldBe i.asRight
-      getInt.run(().asLeft) shouldBe ().leftNec
+      assert(getInt.run(i.asRight) == i.asRight)
+      assert(getInt.run(().asLeft) == ().leftNec)
     }
   }
 
   test("eitherF should lift the right-side result to F[A]") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val getIntF = eitherF[IO, Unit, Int]
-      getIntF.run(i.asRight).value.unsafeRunSync() shouldBe i.asRight
-      getIntF.run(().asLeft).value.unsafeRunSync() shouldBe ().leftNec
+      getIntF.run(i.asRight).value.assertEquals(i.asRight)
+      getIntF.run(().asLeft).value.assertEquals(().leftNec)
     }
   }
 
   test("eitherEval should evaluate an input effect and return the result") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val resultIO = eitherEval[IO, Unit, Int].run(i.asRight.pure[IO]).value
-      resultIO.unsafeRunSync() shouldBe i.asRight
+      resultIO.assertEquals(i.asRight)
     }
   }
 }

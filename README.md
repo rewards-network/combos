@@ -6,8 +6,7 @@
 A validation library for Scala
 
 ## Setup
-This library is published for both Scala 2.12 and 2.13.
-Scala 3 support will be coming soon.
+This library is published for Scala 3 as well as Scala 2.12/2.13.
 ```
 libraryDependencies += "com.rewardsnetwork" %% "combos" % "<latest tag>"
 libraryDependencies += "com.rewardsnetwork" %% "combos-refined" % "<latest tag>" //Optional - adds Refined support
@@ -47,7 +46,7 @@ As opposed to manually composing `Either` and `Validated` values together and fi
 To get started, `import com.rewardsnetwork.combos.syntax._` and take a look at the `check` function, which allows you to create a validator.
 The way it works is simple: you provide a partial function (like `{ case x => ... }`) that returns some error value for each branch.
 Anything that does not match is assumed valid, and passes through without returning an error.
-To run one, just use `.run(a)` for some `A` value.
+To run one, just use `.apply(a)` or `.run(a)` for some `A` value.
 
 You can compose validators together just like any `Monad`, as under the hood, a `Validator` is a `cats.data.Kleisli` value.
 This just means, it's a function that we've wrapped with a special data type that allows us to transform its inputs and outputs, among other things.

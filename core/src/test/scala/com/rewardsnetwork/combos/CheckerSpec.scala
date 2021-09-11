@@ -2,46 +2,50 @@ package com.rewardsnetwork.combos
 
 import Checks._
 import cats.effect.IO
+import munit.CatsEffectSuite
+import munit.ScalaCheckEffectSuite
+import org.scalacheck.Prop
+import org.scalacheck.effect.PropF
 
-class CheckerSpec extends TestingBase {
+class CheckerSpec extends CatsEffectSuite with ScalaCheckEffectSuite {
 
   test("Checker[E].ask[A] == ask[E, A]") {
-    forAll { i: Int =>
+    Prop.forAll { (i: Int) =>
       val checker = Checker[Unit]
       val normalAsk = syntax.ask[Unit, Int]
       val checkerAsk = checker.ask[Int]
 
-      normalAsk.run(i) shouldBe checkerAsk.run(i)
+      assert(normalAsk.run(i) == checkerAsk.run(i))
     }
   }
 
   test("Checker[E].check[A] == check[E, A]") {
-    forAll { badInt: Int =>
+    Prop.forAll { (badInt: Int) =>
       val checker = Checker[Boolean]
       val normalCheck = intCheck(badInt)
       val checkerCheck = checker.check[Int] {
         case i if i == badInt => false
       }
 
-      normalCheck.run(badInt) shouldBe checkerCheck.run(badInt)
+      assert(normalCheck.run(badInt) == checkerCheck.run(badInt))
     }
   }
 
   test("FChecker[F, E].ask[A] == askF[F, E, A]") {
-    forAll { i: Int =>
+    PropF.forAllF { (i: Int) =>
       val checker = FChecker[IO, Unit]
       val normalAsk = syntax.askF[IO, Unit, Int]
       val checkerAsk = checker.ask[Int]
 
-      val normalResults = normalAsk.run(i).value.unsafeRunSync()
-      val checkerResults = checkerAsk.run(i).value.unsafeRunSync()
+      val normalResults = normalAsk.run(i).value
+      val checkerResults = checkerAsk.run(i).value
 
-      normalResults shouldBe checkerResults
+      checkerResults.flatMap(normalResults.assertEquals(_))
     }
   }
 
   test("FChecker[F, E].check[A] == checkF[F, E, A]") {
-    forAll { badInt: Int =>
+    Prop.forAll { (badInt: Int) =>
       val checker = FChecker[IO, Boolean]
       val normalCheck = intCheckIO(badInt)
       val checkerCheck = checker.check[Int] {
@@ -50,7 +54,7 @@ class CheckerSpec extends TestingBase {
 
       val normalResult = normalCheck.run(badInt).value.unsafeRunSync()
       val checkerResult = checkerCheck.run(badInt).value.unsafeRunSync()
-      normalResult shouldBe checkerResult
+      assert(normalResult == checkerResult)
     }
   }
 }
